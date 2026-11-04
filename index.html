@@ -1072,9 +1072,7 @@ async function m3ExcluirNotificacao(r,botao){
   const fotos=[...new Set((rf.data||[]).map(x=>x.caminho_storage).filter(Boolean))];
   const campos=['foto_local_obra','foto_notificacao','foto_auto_infracao','foto_auto_embargo'];
   const fotosMultas=[...new Set((rm.data||[]).flatMap(x=>campos.map(k=>x[k])).filter(Boolean))];
-  status('m3-status','Excluindo documentos vinculados no banco de dados...');
-  const {error}=await cliente.rpc('excluir_notificacao_administrador',{p_notificacao_id:r.n.id});
-  if(error)throw error;
+  status('m3-status','Removendo arquivos vinculados antes de excluir a notificação...');
   const falhas=[];
   let removidosConfirmados=0;
   // A exclusão no banco NÃO remove automaticamente objetos do Storage.
@@ -1123,6 +1121,9 @@ async function m3ExcluirNotificacao(r,botao){
     else removidosConfirmados++;
    }
   }
+  if(falhas.length)throw Error('Notificação preservada; arquivos pendentes: '+falhas.join(' | '));
+  const {error}=await cliente.rpc('excluir_notificacao_administrador',{p_notificacao_id:r.n.id});
+  if(error)throw Error('Arquivos removidos, mas notificação preservada: '+erroTexto(error));
   $('m3-editar-area').hidden=true;m3FecharDetalhes();
   await m3Pesquisar();
   status('m3-status',falhas.length?'Notificação excluída do banco, porém a limpeza do Storage requer atenção: '+falhas.join(' | '):'Notificação '+numero+' excluída. '+removidosConfirmados+' arquivo(s) removido(s) e conferido(s) no Storage.',!!falhas.length);
