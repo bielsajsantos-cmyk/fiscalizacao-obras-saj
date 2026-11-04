@@ -1801,7 +1801,21 @@ el('m4-whatsapp').addEventListener('click',()=>{
  async function excluirDemandaAdministrador(d,botao){
   if(perfilAtual?.perfil!=='administrador'||!usuarioAtual)return;
   if(!confirm('Excluir definitivamente a demanda de protocolo '+d.protocolo+' e seus anexos?'))return;
-  const senha=prompt('Confirme a senha do administrador para excluir o protocolo '+d.protocolo+':');
+  const senha=await new Promise(resolve=>{
+   const fundo=document.createElement('div');
+   fundo.style.cssText='position:fixed;inset:0;background:#0009;z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
+   const form=document.createElement('form');
+   form.style.cssText='background:#fff;color:#123;max-width:440px;width:100%;padding:24px;border-radius:12px';
+   const titulo=document.createElement('h3');titulo.textContent='Confirmar exclusão do protocolo '+d.protocolo;
+   const entrada=document.createElement('input');entrada.type='password';entrada.required=true;entrada.autocomplete='current-password';entrada.placeholder='Senha do administrador';entrada.style.width='100%';
+   const acoes=document.createElement('div');acoes.style.cssText='display:flex;gap:12px;justify-content:flex-end;margin-top:18px';
+   const cancelar=document.createElement('button');cancelar.type='button';cancelar.className='secondary';cancelar.textContent='Cancelar';
+   const confirmar=document.createElement('button');confirmar.type='submit';confirmar.textContent='Verificar senha';
+   const fechar=v=>{entrada.value='';fundo.remove();resolve(v);};
+   cancelar.addEventListener('click',()=>fechar(null));
+   form.addEventListener('submit',ev=>{ev.preventDefault();fechar(entrada.value);});
+   acoes.append(cancelar,confirmar);form.append(titulo,entrada,acoes);fundo.append(form);document.body.append(fundo);entrada.focus();
+  });
   if(!senha)return;
   botao.disabled=true;
   const st=el('demandas-recepcao-status');
