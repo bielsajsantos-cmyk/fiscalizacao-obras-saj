@@ -1,5 +1,5 @@
--- PROPOSTA PARA REVISAO: NAO EXECUTAR AUTOMATICAMENTE.
--- Necessario antes de publicar o botao de exclusao de demandas.
+-- Instalado no Supabase em 2026-11-04. Mantido para auditoria e repetibilidade.
+-- A interface ainda requer validacao funcional antes da publicacao.
 -- Somente administrador ativo, com sessao autenticada recentemente.
 CREATE OR REPLACE FUNCTION public.excluir_demanda_administrador(p_demanda_id uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
