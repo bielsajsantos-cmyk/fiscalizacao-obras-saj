@@ -1796,6 +1796,51 @@ el('m4-whatsapp').addEventListener('click',()=>{
  el('demanda-detalhes-fechar').addEventListener('click',fecharDetalhesDemanda);
  el('demanda-detalhes-overlay').addEventListener('click',ev=>{if(ev.target===el('demanda-detalhes-overlay'))fecharDetalhesDemanda()});
  document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&!el('demanda-detalhes-overlay').hidden)fecharDetalhesDemanda()});
+
+ async function excluirDemandaAdministrador(d,botao){
+  if(perfilAtual?.perfil!=='administrador'||!usuarioAtual)return;
+  if(!confirm('Excluir definitivamente a demanda de protocolo '+d.protocolo+' e seus anexos?'))return;
+  const senha=prompt('Confirme a senha do administrador para excluir o protocolo '+d.protocolo+':');
+  if(!senha)return;
+  botao.disabled=true;
+  const st=el('demandas-recepcao-status');
+  try{
+   const {data:auth,error:ae}=await cliente.auth.signInWithPassword({email:usuarioAtual.email,password:senha});
+   if(ae||auth?.user?.id!==usuarioAtual.id)throw Error('Senha incorreta ou conta diferente.');
+   if(!confirm('ÚLTIMA CONFIRMAÇÃO: excluir o protocolo '+d.protocolo+'?'))return;
+   st.textContent='Verificando anexos da demanda...';
+   const caminhos=new Set(),falhas=[];
+   for(let offset=0;offset<10000;offset+=100){
+    const {data,error}=await cliente.storage.from('demandas-saj').list(String(d.id),{limit:100,offset});
+    if(error)throw Error('Não foi possível inventariar os anexos: '+erroTexto(error));
+    for(const item of data||[]){
+     if(!item.name)continue;
+     if(item.id)caminhos.add(String(d.id)+'/'+item.name);
+     else falhas.push('Subpasta não verificada: '+item.name);
+    }
+    if((data||[]).length<100)break;
+    if(offset===9900)throw Error('Listagem de anexos excedeu o limite seguro.');
+   }
+   if(falhas.length)throw Error(falhas.join('; '));
+   const {error:de}=await cliente.rpc('excluir_demanda_administrador',{p_demanda_id:d.id});
+   if(de)throw Error('Não foi possível excluir a demanda: '+erroTexto(de));
+   for(const caminho of caminhos){
+    const {error:re}=await cliente.storage.from('demandas-saj').remove([caminho]);
+    if(re){falhas.push(caminho+': '+erroTexto(re));continue;}
+    const nome=caminho.split('/').pop();
+    const {data:resto,error:ve}=await cliente.storage.from('demandas-saj').list(String(d.id),{limit:1000,search:nome});
+    if(ve||resto?.some(x=>x.name===nome))falhas.push(caminho+': não foi possível confirmar remoção');
+   }
+   await carregarDemandasSAJ();
+   st.textContent=falhas.length?'Demanda excluída, mas há anexos pendentes: '+falhas.join(' | '):'Demanda '+d.protocolo+' e anexos excluídos e conferidos.';
+  }catch(e){st.textContent='Exclusão não concluída: '+erroTexto(e);}
+  finally{botao.disabled=false;}
+ }
+ function botaoExcluirDemanda(d){
+  const b=document.createElement('button');b.type='button';b.textContent='Excluir demanda';
+  b.style.cssText='background:#a21d25;color:#fff;margin-left:6px';
+  b.addEventListener('click',()=>excluirDemandaAdministrador(d,b));return b;
+ }
  window.carregarDemandasSAJ=async function(){if(!cliente||!perfilAtual)return;const tbody=el('demandas-recepcao-linhas');tbody.replaceChildren();const recentes=el('demandas-concluidas-recentes');recentes.replaceChildren();el('demandas-recepcao-status').textContent='Consultando demandas...';try{
  const {data,error}=await cliente.from('demandas_recepcao').select('id,protocolo,data_denuncia,endereco_obra,descricao_irregularidade,origem_demanda,origem_outros_descricao,numero_protocolo_ouvidoria,equipe_id,situacao,criado_em,concluido_em,resultado_atendimento,numero_notificacao,observacoes_conclusao,prioridade').order('prioridade',{ascending:false}).order('criado_em',{ascending:false}).limit(500);if(error)throw error;
  const nomes=new Map((equipesAtuais||[]).map(e=>[String(e.id),e.nome]));let pendentes=0,concluidas=0;for(const d of data||[]){
@@ -1804,10 +1849,10 @@ el('m4-whatsapp').addEventListener('click',()=>{
   const tr=document.createElement('tr');tr.style.backgroundColor='#dcfce7';tr.style.borderLeft='4px solid #16a34a';
   const dt=d.concluido_em?new Date(d.concluido_em).toLocaleDateString('pt-BR'):d.data_denuncia?.split('-').reverse().join('/')||'—';
   [d.numero_notificacao||'Protocolo '+d.protocolo,dt,'Demanda da recepção — protocolo '+d.protocolo,d.endereco_obra,nomes.get(String(d.equipe_id))||d.equipe_id,'Concluída ✓',d.resultado_atendimento||'Atendimento concluído'].forEach(v=>celula(tr,v));
-  const detalhes=document.createElement('button');detalhes.type='button';detalhes.className='secondary';detalhes.textContent='Ver detalhes';detalhes.style.marginTop='6px';detalhes.addEventListener('click',()=>abrirDetalhesDemanda(d,nomes.get(String(d.equipe_id))||'Equipe '+d.equipe_id));tr.children[6].append(document.createElement('br'),detalhes);
+  const detalhes=document.createElement('button');detalhes.type='button';detalhes.className='secondary';detalhes.textContent='Ver detalhes';detalhes.style.marginTop='6px';detalhes.addEventListener('click',()=>abrirDetalhesDemanda(d,nomes.get(String(d.equipe_id))||'Equipe '+d.equipe_id));tr.children[6].append(document.createElement('br'),detalhes);if(perfilAtual?.perfil==='administrador')tr.children[6].append(botaoExcluirDemanda(d));
   recentes.append(tr);continue;
  }
- pendentes++;const tr=document.createElement('tr');if(d.situacao==='Concluída'){tr.style.backgroundColor="#dcfce7";tr.style.borderLeft="4px solid #16a34a";}else if(d.prioridade){tr.style.backgroundColor="#fff4d6";tr.style.borderLeft="4px solid #d97706";}const vals=[d.protocolo,d.data_denuncia?.split('-').reverse().join('/')||'—',d.endereco_obra,nomes.get(String(d.equipe_id))||d.equipe_id,d.prioridade?"⚠ PRIORITÁRIA":"Normal",d.situacao,d.concluido_em?new Date(d.concluido_em).toLocaleString('pt-BR'):new Date(d.criado_em).toLocaleString('pt-BR')];vals.forEach(v=>celula(tr,v));const td=document.createElement('td');const ver=document.createElement('button');ver.type='button';ver.className='secondary';ver.textContent='Ver detalhes';ver.addEventListener('click',()=>abrirDetalhesDemanda(d,nomes.get(String(d.equipe_id))||'Equipe '+d.equipe_id));td.append(ver);if(perfilPodeAtender(d)&&d.situacao!=='Concluída'){const b=document.createElement('button');b.type='button';b.textContent='Registrar atendimento';b.addEventListener('click',()=>abrirAtendimento(d));td.append(b);}tr.append(td);tbody.append(tr)}el('demandas-recepcao-status').textContent=`${pendentes} demanda(s) pendente(s) ou em atendimento. ${concluidas} concluída(s) exibida(s) em Atualizações Recentes.`;if(!pendentes){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=8;td.textContent='Nenhuma demanda pendente ou em atendimento.';tr.append(td);tbody.append(tr)}}catch(e){el('demandas-recepcao-status').textContent=e.message||String(e)}};
+ pendentes++;const tr=document.createElement('tr');if(d.situacao==='Concluída'){tr.style.backgroundColor="#dcfce7";tr.style.borderLeft="4px solid #16a34a";}else if(d.prioridade){tr.style.backgroundColor="#fff4d6";tr.style.borderLeft="4px solid #d97706";}const vals=[d.protocolo,d.data_denuncia?.split('-').reverse().join('/')||'—',d.endereco_obra,nomes.get(String(d.equipe_id))||d.equipe_id,d.prioridade?"⚠ PRIORITÁRIA":"Normal",d.situacao,d.concluido_em?new Date(d.concluido_em).toLocaleString('pt-BR'):new Date(d.criado_em).toLocaleString('pt-BR')];vals.forEach(v=>celula(tr,v));const td=document.createElement('td');const ver=document.createElement('button');ver.type='button';ver.className='secondary';ver.textContent='Ver detalhes';ver.addEventListener('click',()=>abrirDetalhesDemanda(d,nomes.get(String(d.equipe_id))||'Equipe '+d.equipe_id));td.append(ver);if(perfilAtual?.perfil==='administrador')td.append(botaoExcluirDemanda(d));if(perfilPodeAtender(d)&&d.situacao!=='Concluída'){const b=document.createElement('button');b.type='button';b.textContent='Registrar atendimento';b.addEventListener('click',()=>abrirAtendimento(d));td.append(b);}tr.append(td);tbody.append(tr)}el('demandas-recepcao-status').textContent=`${pendentes} demanda(s) pendente(s) ou em atendimento. ${concluidas} concluída(s) exibida(s) em Atualizações Recentes.`;if(!pendentes){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=8;td.textContent='Nenhuma demanda pendente ou em atendimento.';tr.append(td);tbody.append(tr)}}catch(e){el('demandas-recepcao-status').textContent=e.message||String(e)}};
  el('recepcao-abrir').addEventListener('click',()=>{if(perfilAtual?.perfil!=='recepcionista'&&perfilAtual?.perfil!=='administrador')return;for(const id of ['app-area','menu3-area','cadastro-area','menu2-area','roteiro-area','menu4-area','menu6-area'])el(id).hidden=true;el('recepcao-area').hidden=false;el('rd-data').value=hojeLocal();const sel=el('rd-equipe');sel.replaceChildren();for(const eq of equipesAtuais||[])sel.add(new Option(eq.nome,String(eq.id)));el('recepcao-area').scrollIntoView()});
  el('recepcao-voltar').addEventListener('click',()=>{el('recepcao-area').hidden=true;el('app-area').hidden=false;carregarDemandasSAJ()});
  async function pesquisarDemandasMenu7(){
