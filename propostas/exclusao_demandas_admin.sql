@@ -22,11 +22,13 @@ END $$;
 REVOKE ALL ON FUNCTION public.excluir_demanda_administrador(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.excluir_demanda_administrador(uuid) TO authenticated;
 -- Administrador precisa listar arquivos mesmo apos a exclusao do registro.
+DROP POLICY IF EXISTS demandas_saj_admin_ler_orfaos ON storage.objects;
 CREATE POLICY demandas_saj_admin_ler_orfaos ON storage.objects
 FOR SELECT TO authenticated USING (
  bucket_id='demandas-saj' AND EXISTS (
  SELECT 1 FROM public.perfis p WHERE p.id=(SELECT auth.uid()) AND p.ativo AND p.perfil='administrador'
  ));
+DROP POLICY IF EXISTS demandas_saj_admin_excluir ON storage.objects;
 CREATE POLICY demandas_saj_admin_excluir ON storage.objects
 FOR DELETE TO authenticated USING (
  bucket_id='demandas-saj' AND EXISTS (
