@@ -1810,16 +1810,23 @@ el('m4-whatsapp').addEventListener('click',()=>{
    if(!confirm('ÚLTIMA CONFIRMAÇÃO: excluir o protocolo '+d.protocolo+'?'))return;
    st.textContent='Verificando anexos da demanda...';
    const caminhos=new Set(),falhas=[];
-   for(let offset=0;offset<10000;offset+=100){
-    const {data,error}=await cliente.storage.from('demandas-saj').list(String(d.id),{limit:100,offset});
-    if(error)throw Error('Não foi possível inventariar os anexos: '+erroTexto(error));
-    for(const item of data||[]){
-     if(!item.name)continue;
-     if(item.id)caminhos.add(String(d.id)+'/'+item.name);
-     else falhas.push('Subpasta não verificada: '+item.name);
+   const pastas=[String(d.id)],visitadas=new Set();
+   while(pastas.length){
+    const pasta= pastas.shift();
+    if(visitadas.has(pasta))continue;
+    visitadas.add(pasta);
+    let completa=false;
+    for(let offset=0;offset<10000;offset+=100){
+     const {data,error}=await cliente.storage.from('demandas-saj').list(pasta,{limit:100,offset,sortBy:{column:'name',order:'asc'}});
+     if(error)throw Error('Não foi possível inventariar '+pasta+': '+erroTexto(error));
+     for(const item of data||[]){
+      if(!item.name)continue;
+      if(item.id)caminhos.add(pasta+'/'+item.name);
+      else pastas.push(pasta+'/'+item.name);
+     }
+     if((data||[]).length<100){completa=true;break;}
     }
-    if((data||[]).length<100)break;
-    if(offset===9900)throw Error('Listagem de anexos excedeu o limite seguro.');
+    if(!completa)throw Error('Listagem de anexos incompleta em '+pasta+'. Exclusão cancelada.');
    }
    if(falhas.length)throw Error(falhas.join('; '));
    const {error:de}=await cliente.rpc('excluir_demanda_administrador',{p_demanda_id:d.id});
