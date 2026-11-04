@@ -1829,15 +1829,18 @@ el('m4-whatsapp').addEventListener('click',()=>{
     if(!completa)throw Error('Listagem de anexos incompleta em '+pasta+'. Exclusão cancelada.');
    }
    if(falhas.length)throw Error(falhas.join('; '));
-   const {error:de}=await cliente.rpc('excluir_demanda_administrador',{p_demanda_id:d.id});
-   if(de)throw Error('Não foi possível excluir a demanda: '+erroTexto(de));
+   // Remover arquivos antes do registro: RLS da demanda permanece verificavel.
+   // Se algum arquivo falhar, preservar o registro para permitir nova tentativa.
    for(const caminho of caminhos){
     const {error:re}=await cliente.storage.from('demandas-saj').remove([caminho]);
     if(re){falhas.push(caminho+': '+erroTexto(re));continue;}
-    const nome=caminho.split('/').pop();
-    const {data:resto,error:ve}=await cliente.storage.from('demandas-saj').list(String(d.id),{limit:1000,search:nome});
+    const partes=caminho.split('/'),nome=partes.pop(),pasta=partes.join('/');
+    const {data:resto,error:ve}=await cliente.storage.from('demandas-saj').list(pasta,{limit:1000,search:nome});
     if(ve||resto?.some(x=>x.name===nome))falhas.push(caminho+': não foi possível confirmar remoção');
    }
+   if(falhas.length)throw Error('Registro preservado; arquivos pendentes: '+falhas.join(' | '));
+   const {error:de}=await cliente.rpc('excluir_demanda_administrador',{p_demanda_id:d.id});
+   if(de)throw Error('Arquivos removidos, mas registro preservado. Tente novamente: '+erroTexto(de));
    await carregarDemandasSAJ();
    st.textContent=falhas.length?'Demanda excluída, mas há anexos pendentes: '+falhas.join(' | '):'Demanda '+d.protocolo+' e anexos excluídos e conferidos.';
   }catch(e){st.textContent='Exclusão não concluída: '+erroTexto(e);}
