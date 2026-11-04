@@ -1085,13 +1085,27 @@ async function m3ExcluirNotificacao(r,botao){
    // Encontrar arquivos que não tenham sido incluídos nas referências do banco.
    // Listagem paginada da pasta principal; para processos de multa, os caminhos
    // explicitamente registrados também são verificados abaixo.
-   if(bucket===FOTO_BUCKET){
+   // Percorre todas as subpastas da notificação nos dois buckets, inclusive
+   // anexos sem referência no banco. Não usa SQL para excluir objetos Storage.
+   const pendentes=[String(r.n.id)];
+   const visitadas=new Set();
+   while(pendentes.length){
+    const pastaAtual=pendentes.shift();
+    if(visitadas.has(pastaAtual))continue;
+    visitadas.add(pastaAtual);
+    let terminou=false;
     for(let offset=0;offset<10000;offset+=100){
-     const {data:itens,error:le}=await cliente.storage.from(bucket).list(String(r.n.id),{limit:100,offset});
-     if(le){falhas.push(bucket+': não foi possível listar pasta: '+erroTexto(le));break;}
-     for(const item of itens||[])if(item.name&&item.id)caminhos.add(String(r.n.id)+'/'+item.name);
-     if((itens||[]).length<100)break;
+     const {data:itens,error:le}=await cliente.storage.from(bucket).list(pastaAtual,{limit:100,offset,sortBy:{column:'name',order:'asc'}});
+     if(le){falhas.push(bucket+': falha ao listar '+pastaAtual+': '+erroTexto(le));break;}
+     for(const item of itens||[]){
+      if(!item.name)continue;
+      const caminhoItem=pastaAtual+'/'+item.name;
+      if(item.id)caminhos.add(caminhoItem);
+      else pendentes.push(caminhoItem);
+     }
+     if((itens||[]).length<100){terminou=true;break;}
     }
+    if(!terminou)falhas.push(bucket+': listagem incompleta em '+pastaAtual);
    }
    for(const caminho of caminhos){
     const normal=String(caminho).replace(/^\/+/, '');
