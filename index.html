@@ -732,7 +732,13 @@ function prazoSituacao(n,ref){const d=diasUteisRestantes(ref,n.prazo_regularizac
 async function m2Consultar(){
  if(!cliente||!usuarioAtual)return;
  m2Status('Consultando...');$('m2-linhas').replaceChildren();roteiroSelecionadas.clear();
- const {data,error}=await cliente.from('notificacoes').select('id,equipe_id,numero_notificacao,nome_autuado,endereco_obra,bairro,data_notificacao,prazo_regularizacao,situacao').order('data_notificacao',{ascending:false}).limit(500);
+ // No painel de prazos, fiscais visualizam somente notificações de sua equipe. Administradores mantêm a visão geral.
+ let consultaPrazos=cliente.from('notificacoes').select('id,equipe_id,numero_notificacao,nome_autuado,endereco_obra,bairro,data_notificacao,prazo_regularizacao,situacao');
+ if(perfilAtual?.perfil==='fiscal'){
+   if(!perfilAtual.equipe_id){m2Status('Seu perfil não possui equipe vinculada. Contate o administrador.',true);return;}
+   consultaPrazos=consultaPrazos.eq('equipe_id',perfilAtual.equipe_id);
+ }
+ const {data,error}=await consultaPrazos.order('data_notificacao',{ascending:false}).limit(500);
  if(error){m2Status(erroTexto(error),true);return}
  const ids=(data||[]).map(x=>x.id);let ret=[];
  if(ids.length){const r=await cliente.from('retornos_fiscalizacao').select('notificacao_id,data_retorno').in('notificacao_id',ids);if(r.error){m2Status(erroTexto(r.error),true);return}ret=r.data||[]}
