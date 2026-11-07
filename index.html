@@ -1264,6 +1264,24 @@ function delta(atual,prev){return prev===0?(atual===0?'0,0%':'Sem base anterior'
 function pegarSolicitante(r){const s=String(r.providencias_adotadas||'');const m=s.match(/(?:^|;\s*)(?:solicitante|autorizador):\s*(.*?)(?=;\s*justificativa:|$)/i);return m?(s.match(/(?:^|;\s*)solicitante:/i)?m[1].trim():'Histórico anterior — confirmar solicitante'):'Não informado'}
 function bairro(n){return String(n.bairro||n.endereco_obra?.match(/Bairro:\s*([^|]+)/i)?.[1]||'Não informado').trim()||'Não informado'}
 function rua(n){return String(n.endereco_obra||'').split('|')[0].trim()||'Não informada'}
+// Consolida rodovias pelo código, preservando endereço original no detalhamento.
+function localidadeConsolidada(n){
+ const endereco=rua(n);
+ const rodovia=endereco.match(/\b(BA|BR)\s*[-–]?\s*0*(\d{2,3})\b/i);
+ if(rodovia)return rodovia[1].toUpperCase()+'-'+rodovia[2].padStart(3,'0');
+ return endereco;
+}
+function locaisMaisNotificados(nots){
+ const grupos=new Map();
+ for(const n of nots){
+  const nome=localidadeConsolidada(n),chave=normal(nome)||'nao informado';
+  if(!grupos.has(chave))grupos.set(chave,{nome,registros:[],equipes:new Map()});
+  const grupo=grupos.get(chave);
+  grupo.registros.push(n);
+  grupo.equipes.set(n.equipe_id,(grupo.equipes.get(n.equipe_id)||0)+1);
+ }
+ return [...grupos.values()].filter(g=>g.registros.length>=2).sort((a,b)=>b.registros.length-a.registros.length||a.nome.localeCompare(b.nome,'pt-BR'));
+}
 function gruposLocal(nots,fn){const m=new Map();for(const n of nots){const v=fn(n),key=normal(v)||'nao informado';if(!m.has(key))m.set(key,{nome:v,total:0,equipes:new Map()});const g=m.get(key);g.total++;g.equipes.set(n.equipe_id,(g.equipes.get(n.equipe_id)||0)+1)}return [...m.values()].sort((a,b)=>b.total-a.total||a.nome.localeCompare(b.nome,'pt-BR'))}
 function mensal(rows,dt){return contar(rows,x=>mes(x[dt]))}
 function m4AtualizarPeriodo(){
@@ -1308,7 +1326,12 @@ const solicitantes=new Map();for(const x of di){const pessoa=pegarSolicitante(x)
 html+=tabela('5. Ranking de solicitantes de dilação',['Posição','Nome registrado','Dilações'],ranking.map((x,i)=>[i+1,x.pessoa,inteiro(x.qt)]));
 html+=tabela('6. Dilações registradas no período',['Notificação','Equipe','Data do retorno','Solicitante informado','Novo vencimento'],di.sort((x,y)=>x.data_retorno.localeCompare(y.data_retorno)).map(x=>[porId.get(x.notificacao_id)?.numero_notificacao||'—',nomeEquipe(porId.get(x.notificacao_id)?.equipe_id),dia(x.data_retorno),pegarSolicitante(x),dia(x.novo_prazo)]));
 for(const [titulo,fn] of [['8. Notificações por bairro e equipe',bairro],['9. Notificações por rua e equipe',rua]]){const grupos=gruposLocal(n,fn);html+=tabela(titulo,['Localidade',...idsEq.map(nomeEquipe),'Total'],grupos.map(g=>[g.nome,...idsEq.map(id=>inteiro(g.equipes.get(id)||0)),inteiro(g.total)]));}
-html+=tabela('9. Outros procedimentos',['Procedimento','Quantidade'],[['Intimações demolitórias',inteiro(dm.length)],['Autos de interdição',inteiro(it.length)],['Autos de embargo',inteiro(ae.length)]]);
+const locaisRecorrentes=locaisMaisNotificados(n);
+html+=tabela('10. Locais mais notificados — ranking',['Localidade',...idsEq.map(nomeEquipe),'Total'],locaisRecorrentes.map(g=>[g.nome,...idsEq.map(id=>inteiro(g.equipes.get(id)||0)),inteiro(g.registros.length)]));
+for(const g of locaisRecorrentes){
+ html+=tabela('Detalhamento — '+g.nome,['Notificação','Equipe','Data','Local específico'],g.registros.slice().sort((a,b)=>String(a.data_notificacao).localeCompare(String(b.data_notificacao))||String(a.numero_notificacao).localeCompare(String(b.numero_notificacao))).map(x=>[x.numero_notificacao||'—',nomeEquipe(x.equipe_id),dia(x.data_notificacao),rua(x)]));
+}
+html+=tabela('11. Outros procedimentos',['Procedimento','Quantidade'],[['Intimações demolitórias',inteiro(dm.length)],['Autos de interdição',inteiro(it.length)],['Autos de embargo',inteiro(ae.length)]]);
 // Indicadores de eficiência: vencimento ocorrido no período e primeira visita de retorno por notificação.
 const notificacoesEscopo=ns.filter(x=>!eq||String(x.equipe_id)===eq);
 const vencimentosPeriodo=notificacoesEscopo.filter(x=>inRange(x.prazo_regularizacao,a,b));
@@ -1322,7 +1345,7 @@ const mediaTempo=tempos.length?(tempos.reduce((total,x)=>total+x,0)/tempos.lengt
 const infracionadasNoPeriodo=new Set(ai.map(x=>x.notificacao_id));
 const embargadasNoPeriodo=new Set(ae.map(x=>x.notificacao_id));
 const comMedidasNoPeriodo=new Set([...infracionadasNoPeriodo,...embargadasNoPeriodo]);
-html+=tabela('10. Eficiência dos prazos de fiscalização',['Indicador','Resultado'],[
+html+=tabela('12. Eficiência dos prazos de fiscalização',['Indicador','Resultado'],[
  ['Notificações com prazo de vencimento no período',inteiro(vencimentosPeriodo.length)],
  ['Notificações com primeiro retorno registrado no período',inteiro(retornosNoPeriodo.length)],
  ['Primeiros retornos realizados dentro do prazo vigente registrado',inteiro(dentroPrazo.length)],
