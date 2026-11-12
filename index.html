@@ -716,13 +716,15 @@ let roteiroCarregando=false;
 let roteiroDataConsultada=null;
 function roteiroEquipeId(){return Number($('roteiro-equipe').value||perfilAtual?.equipe_id||0)}
 function roteiroData(){return roteiroDataConsultada||m2Data()}
-function roteiroPodeEditar(){return !roteiroDataConsultada&&(perfilAtual?.perfil==='administrador'||Number(perfilAtual?.equipe_id)===roteiroEquipeId())}
+function roteiroEquipeAutorizada(){return perfilAtual?.perfil==='administrador'||(perfilAtual?.perfil==='fiscal'&&Number(perfilAtual?.equipe_id)===roteiroEquipeId())}
+function roteiroPodeEditar(){return !roteiroDataConsultada&&roteiroEquipeAutorizada()}
+function roteiroPodeRemover(){return roteiroEquipeAutorizada()}
 async function roteiroCarregar(){
  if(!usuarioAtual)return;
  const equipe=roteiroEquipeId(),data=roteiroData();
  $('roteiro-data').value=m2Data();
  $('roteiro-voltar-hoje').hidden=!roteiroDataConsultada;
- $('roteiro-modo').textContent=roteiroDataConsultada?'Consulta histórica de '+m2Format(data)+' — somente leitura. Para programar visitas, volte ao roteiro de hoje.':'Roteiro de hoje — '+m2Format(data)+' • novas visitas começam como Pendente.';
+ $('roteiro-modo').textContent=roteiroDataConsultada?'Consulta histórica de '+m2Format(data)+' — é possível remover visitas autorizadas; outras alterações ficam bloqueadas. Para programar visitas, volte ao roteiro de hoje.':'Roteiro de hoje — '+m2Format(data)+' • novas visitas começam como Pendente.';
  if(!equipe||!data){roteiroItens=[];roteiroRender();return}
  roteiroCarregando=true;status('roteiro-status','Carregando roteiro do Supabase...');
  try{
@@ -770,9 +772,9 @@ function roteiroRender(){
   const estado=document.createElement('span');estado.textContent=n.realizada?'Realizada':'Pendente';estado.className='roteiro-estado '+(n.realizada?'roteiro-estado-realizada':'roteiro-estado-pendente');td.append(estado);
   const ac=[['↑',()=>roteiroMover(i,-1)],['↓',()=>roteiroMover(i,1)],['Registrar retorno',()=>m2Abrir(n)],['Ver detalhes',()=>roteiroDetalhes(n,tr)],['Remover',()=>roteiroRemover(i)]];
   const acoesLinha=document.createElement('div');acoesLinha.style.display='flex';acoesLinha.style.alignItems='center';acoesLinha.style.flexWrap='nowrap';acoesLinha.style.gap='6px';acoesLinha.style.marginTop='6px';
-  for(const [nome,fn] of ac){const b=document.createElement('button');b.type='button';b.textContent=nome;b.className=nome==='Registrar retorno'?'':'secondary';b.style.margin='0';b.style.whiteSpace='nowrap';b.style.flexShrink='0';b.disabled=(nome!=='Ver detalhes'&&!editar)||(nome==='↑'&&i===0)||(nome==='↓'&&i===roteiroItens.length-1);b.addEventListener('click',fn);acoesLinha.append(b)}td.append(acoesLinha);tr.append(td);body.append(tr)
+  for(const [nome,fn] of ac){const b=document.createElement('button');b.type='button';b.textContent=nome;b.className=nome==='Registrar retorno'?'':'secondary';b.style.margin='0';b.style.whiteSpace='nowrap';b.style.flexShrink='0';b.disabled=(nome==='Remover'?!roteiroPodeRemover():(nome!=='Ver detalhes'&&!editar))||(nome==='↑'&&i===0)||(nome==='↓'&&i===roteiroItens.length-1);b.addEventListener('click',fn);acoesLinha.append(b)}td.append(acoesLinha);tr.append(td);body.append(tr)
  }
- status('roteiro-status',roteiroItens.length+' visita(s) • '+roteiroData()+' • dados do Supabase'+(editar?'':' • somente leitura'));
+ status('roteiro-status',roteiroItens.length+' visita(s) • '+roteiroData()+' • dados do Supabase'+(editar?'':roteiroPodeRemover()?' • histórico: remoção permitida':' • somente leitura'));
 }
 async function roteiroDetalhes(n,tr){
  const existente=tr.nextElementSibling;
@@ -798,7 +800,7 @@ async function roteiroDetalhes(n,tr){
  }catch(e){info.textContent='Não foi possível consultar os detalhes: '+erroTexto(e)}
 }
 async function roteiroMover(i,delta){const j=i+delta;if(j<0||j>=roteiroItens.length||!roteiroPodeEditar())return;[roteiroItens[i],roteiroItens[j]]=[roteiroItens[j],roteiroItens[i]];try{await roteiroSalvarOrdem();await roteiroCarregar()}catch(e){status('roteiro-status',erroTexto(e),true);await roteiroCarregar()}}
-async function roteiroRemover(i){if(!roteiroPodeEditar())return;const n=roteiroItens[i];if(!confirm('Remover esta visita do roteiro de '+roteiroData()+'? A notificação continuará cadastrada.'))return;const {error}=await cliente.from('roteiro_visitas_saj').delete().eq('id',n.visita_id);if(error){status('roteiro-status',erroTexto(error),true);return}await roteiroCarregar()}
+async function roteiroRemover(i){if(!roteiroPodeRemover())return;const n=roteiroItens[i];if(!confirm('Remover esta visita do roteiro de '+roteiroData()+'? A notificação continuará cadastrada.'))return;const {error}=await cliente.from('roteiro_visitas_saj').delete().eq('id',n.visita_id);if(error){status('roteiro-status',erroTexto(error),true);return}await roteiroCarregar()}
 function roteiroPrepararEquipes(){const sel=$('roteiro-equipe'),prev=sel.value;sel.replaceChildren();for(const e of equipesAtuais||[]){if(perfilAtual?.perfil==='administrador'||Number(e.id)===Number(perfilAtual?.equipe_id))sel.add(new Option(e.nome,String(e.id)))}sel.value=[...sel.options].some(x=>x.value===prev)?prev:String(perfilAtual?.equipe_id||sel.options[0]?.value||'');sel.disabled=perfilAtual?.perfil!=='administrador'}
 async function roteiroAbrir(){
  ['app-area','cadastro-area','menu2-area','menu3-area','menu4-area','menu6-area'].forEach(id=>$(id).hidden=true);
