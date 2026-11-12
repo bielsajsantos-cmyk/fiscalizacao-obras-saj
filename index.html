@@ -279,6 +279,7 @@ button.roteiro-botao-realizada:disabled{opacity:.5}
  <label>Consultar roteiro de outra data <input id="roteiro-consulta-data" type="date"></label>
  <button type="button" id="roteiro-buscar-data">Buscar roteiro</button>
  <button type="button" class="secondary" id="roteiro-voltar-hoje" hidden>Voltar ao roteiro de hoje</button>
+ <button type="button" id="roteiro-imprimir">🖨 Imprimir roteiro / Salvar PDF</button>
 </div>
 <p id="roteiro-modo" class="muted" aria-live="polite"></p>
 <p id="roteiro-status" role="status" class="muted"></p>
@@ -763,6 +764,18 @@ async function m2Consultar(){
  for(const n of m2Lista){const tr=document.createElement('tr');[n.numero_notificacao,n.nome_autuado,n.endereco_obra,n.bairro||'Não informado',m2Format(n.data_notificacao),m2Format(n.prazo_regularizacao),n.situacao,m2Format(recentes.get(n.id)),prazoSituacao(n,ref)].forEach(x=>celula(tr,x));const td=document.createElement('td');if(m2PodeRegistrar(n)){const cb=document.createElement('input');cb.type='checkbox';cb.style.width='22px';cb.style.height='22px';cb.setAttribute('aria-label','Selecionar notificação '+n.numero_notificacao);cb.addEventListener('change',()=>cb.checked?roteiroSelecionadas.add(n.id):roteiroSelecionadas.delete(n.id));td.append(cb)}else{td.textContent='Outra equipe — consulta';}tr.append(td);$('m2-linhas').append(tr)}
  m2Status(m2Lista.length+' notificação(ões) encontrada(s). Selecione as visitas e clique em Adicionar selecionadas ao roteiro.');
 }
+function roteiroImprimir(){
+ if(roteiroCarregando){status('roteiro-status','Aguarde o carregamento do roteiro.',true);return;}
+ if(!roteiroItens.length){status('roteiro-status','Não há visitas neste roteiro para imprimir.',true);return;}
+ const equipe=$('roteiro-equipe').selectedOptions[0]?.textContent||'Equipe';
+ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const linhas=roteiroItens.map((n,i)=>'<tr><td class="ord">'+(i+1)+'</td><td><b>'+esc(n.numero_notificacao)+'</b><div>'+esc(n.nome_autuado)+'</div></td><td><b>'+esc(n.bairro||'Bairro não informado')+'</b><div>'+esc(n.endereco_obra||'Endereço não informado')+'</div></td><td>'+esc(m2Format(n.prazo_regularizacao))+'</td><td class="anotacoes">________________________________<div>________________________________</div></td></tr>').join('');
+ const html='<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Roteiro - '+esc(equipe)+' - '+esc(m2Format(roteiroData()))+'</title><style>@page{size:A4 landscape;margin:12mm}body{font:12px Arial,sans-serif;color:#182c40}h1{font-size:19px;margin:0}h2{font-size:15px;margin:5px 0 12px}.top{border-bottom:3px solid #183c63;padding-bottom:12px;margin-bottom:12px}.meta{display:flex;justify-content:space-between;gap:12px;margin-bottom:12px;font-size:13px}table{border-collapse:collapse;width:100%;table-layout:fixed}th,td{border:1px solid #9baabd;padding:8px;vertical-align:top;overflow-wrap:anywhere}th{background:#e8eff7;text-align:left}th:nth-child(1){width:5%}th:nth-child(2){width:19%}th:nth-child(3){width:39%}th:nth-child(4){width:12%}th:nth-child(5){width:25%}.anotacoes{line-height:24px;color:#64748b}.ord{text-align:center;font-weight:bold}tr{break-inside:avoid}.rodape{margin-top:18px;font-size:11px;color:#526173}@media print{button{display:none}}</style></head><body><div class="top"><h1>PREFEITURA MUNICIPAL DE SANTO ANTÔNIO DE JESUS</h1><h2>SEINFRA — Fiscalização de Obras | Roteiro de visitas</h2></div><div class="meta"><b>Equipe: '+esc(equipe)+'</b><b>Data: '+esc(m2Format(roteiroData()))+'</b><b>Total de visitas: '+roteiroItens.length+'</b></div><table><thead><tr><th>Ordem</th><th>Notificação / Autuado</th><th>Bairro / Endereço</th><th>Prazo</th><th>Anotações da visita</th></tr></thead><tbody>'+linhas+'</tbody></table><div class="rodape">Roteiro para uso em campo. As anotações feitas no papel devem ser registradas posteriormente no Sistema SAJ.</div></body></html>';
+ const aba=window.open('','_blank');
+ if(!aba){status('roteiro-status','Permita janelas pop-up para imprimir o roteiro.',true);return;}
+ aba.document.open();aba.document.write(html);aba.document.close();
+ aba.focus();setTimeout(()=>aba.print(),400);
+}
 function roteiroRender(){
  const body=$('roteiro-linhas');body.replaceChildren();const editar=roteiroPodeEditar();
  for(let i=0;i<roteiroItens.length;i++){
@@ -813,6 +826,7 @@ async function roteiroAbrir(){
  $('roteiro-area').scrollIntoView({behavior:'smooth'});
 }
 $('roteiro-abrir').addEventListener('click',roteiroAbrir);
+$('roteiro-imprimir').addEventListener('click',roteiroImprimir);
 $('roteiro-buscar-data').addEventListener('click',async()=>{
  const data=$('roteiro-consulta-data').value;
  if(!data){status('roteiro-status','Selecione a data que deseja consultar.',true);$('roteiro-consulta-data').focus();return}
