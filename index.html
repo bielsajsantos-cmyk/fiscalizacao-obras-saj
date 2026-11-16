@@ -271,7 +271,7 @@ button.roteiro-botao-realizada:disabled{opacity:.5}
 <button type="button" class="secondary" id="acomp-voltar">← Voltar ao painel</button>
 <h2>9 — Acompanhamento de Obras Embargadas</h2>
 <p class="muted">Embargos normais e imediatos. Registre cada visita de fiscalização; o histórico permanece disponível por obra.</p>
-<p id="acomp-status" role="status" class="muted"></p>
+<div class="grade-2"><div><label for="acomp-filtro-equipe">Equipe para impressão</label><select id="acomp-filtro-equipe"><option value="">Todas as equipes</option></select></div><div style="align-self:end"><button type="button" id="acomp-imprimir">🖨 Imprimir relação / Salvar PDF</button></div></div><p id="acomp-status" role="status" class="muted"></p>
 <div class="scroll"><table><thead><tr><th>Equipe</th><th>Notificação</th><th>Autuado</th><th>Endereço</th><th>Tipo de embargo</th><th>Última fiscalização</th><th>Ações</th></tr></thead><tbody id="acomp-linhas"></tbody></table></div>
 <section id="acomp-detalhe" hidden style="margin-top:20px;border:1px solid #cbd9e6;padding:16px;border-radius:10px">
 <h3 id="acomp-titulo"></h3><button type="button" class="secondary" id="acomp-fechar">Fechar acompanhamento</button>
@@ -2204,7 +2204,7 @@ document.getElementById('backup-baixar-roteiro')?.addEventListener('click',()=>{
 
 (function(){
  const el=id=>document.getElementById(id);
- let selecionada=null;
+ let selecionada=null,obrasImpressao=[];
  const fmt=v=>{if(!v)return '—';const [y,m,d]=String(v).slice(0,10).split('-');return d+'/'+m+'/'+y};
  const cell=(tr,value)=>{const td=document.createElement('td');td.textContent=value==null||value===''?'—':String(value);tr.append(td)};
  const msg=(id,t)=>el(id).textContent=t;
@@ -2212,16 +2212,18 @@ document.getElementById('backup-baixar-roteiro')?.addEventListener('click',()=>{
  async function listar(){
   msg('acomp-status','Carregando obras embargadas...');el('acomp-linhas').replaceChildren();
   try{
-   const [nr,er,ar]=await Promise.all([
-    cliente.from('notificacoes').select('id,equipe_id,numero_notificacao,nome_autuado,endereco_obra,tipo_procedimento,situacao').order('data_notificacao',{ascending:false}).limit(1000),
-    cliente.from('autos_embargo').select('notificacao_id').limit(1000),
-    cliente.from('acompanhamentos_embargo_saj').select('notificacao_id,data_visita,criado_em').order('data_visita',{ascending:false}).limit(1000)
+   const [nr,er,ar,ir]=await Promise.all([
+    cliente.from('notificacoes').select('id,equipe_id,numero_notificacao,data_notificacao,nome_autuado,endereco_obra,tipo_procedimento,situacao').order('data_notificacao',{ascending:false}).limit(1000),
+    cliente.from('autos_embargo').select('notificacao_id,numero_auto,data_auto').limit(1000),
+    cliente.from('acompanhamentos_embargo_saj').select('notificacao_id,data_visita,criado_em').order('data_visita',{ascending:false}).limit(1000),
+    cliente.from('autos_infracao').select('notificacao_id,numero_auto,data_auto').limit(1000)
    ]);
-   for(const r of [nr,er,ar])if(r.error)throw r.error;
+   for(const r of [nr,er,ar,ir])if(r.error)throw r.error;
    const embargadas=new Set((er.data||[]).map(x=>x.notificacao_id));
+   const agrupar=itens=>{const m=new Map();for(const x of itens||[]){if(!m.has(x.notificacao_id))m.set(x.notificacao_id,[]);m.get(x.notificacao_id).push(x)}return m};const autosEmbargo=agrupar(er.data),autosInfracao=agrupar(ir.data);
    const recentes=new Map();for(const a of ar.data||[])if(!recentes.has(a.notificacao_id))recentes.set(a.notificacao_id,a.data_visita);
    const nomes=new Map((equipesAtuais||[]).map(e=>[String(e.id),e.nome]));
-   const obras=(nr.data||[]).filter(n=>embargadas.has(n.id)||String(n.tipo_procedimento||'').toLowerCase().includes('embargo imediato'));
+   const obras=(nr.data||[]).filter(n=>embargadas.has(n.id)||String(n.tipo_procedimento||'').toLowerCase().includes('embargo imediato'));obrasImpressao=obras.map(n=>({...n,infracoes:autosInfracao.get(n.id)||[],embargos:autosEmbargo.get(n.id)||[]}));
    for(const n of obras){
     const tr=document.createElement('tr');[nomes.get(String(n.equipe_id))||n.equipe_id,n.numero_notificacao,n.nome_autuado,n.endereco_obra,String(n.tipo_procedimento||'').toLowerCase().includes('imediato')?'Imediato':'Normal',fmt(recentes.get(n.id))].forEach(x=>cell(tr,x));
     const td=document.createElement('td'),b=document.createElement('button');b.type='button';b.textContent='Ver acompanhamento';b.addEventListener('click',()=>abrir(n));td.append(b);tr.append(td);el('acomp-linhas').append(tr);
@@ -2229,6 +2231,20 @@ document.getElementById('backup-baixar-roteiro')?.addEventListener('click',()=>{
    msg('acomp-status',obras.length+' obra(s) embargada(s) encontrada(s).');
   }catch(e){msg('acomp-status','Erro ao carregar: '+e.message)}
  }
+ function imprimir(){
+  const filtro=el('acomp-filtro-equipe').value;
+  const obras=obrasImpressao.filter(n=>!filtro||String(n.equipe_id)===filtro);
+  if(!obras.length){msg('acomp-status','Não há obras embargadas nesta equipe para imprimir.');return;}
+  const nomes=new Map((equipesAtuais||[]).map(e=>[String(e.id),e.nome]));
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+  const autos=a=>a.length?a.map(x=>esc(x.numero_auto)+' — '+esc(fmt(x.data_auto))).join('<div style="border-top:1px dotted #ccc;margin-top:3px;padding-top:3px">'):'—';
+  const linhas=obras.map(n=>'<tr><td>'+esc(n.numero_notificacao)+'</td><td>'+esc(fmt(n.data_notificacao))+'</td><td>'+esc(n.nome_autuado)+'</td><td>'+esc(n.endereco_obra)+'</td><td>'+autos(n.infracoes)+'</td><td>'+autos(n.embargos)+'</td></tr>').join('');
+  const data=new Date().toLocaleDateString('pt-BR',{timeZone:'America/Bahia'});
+  const nomeEquipe=filtro?nomes.get(filtro)||'Equipe selecionada':'Todas as equipes';
+  const html='<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relação de obras embargadas</title><style>@page{size:A4 landscape;margin:12mm}body{font:11px Arial,sans-serif;color:#182c40}h1{font-size:17px;margin:0}h2{font-size:14px;margin:6px 0 12px}.top{border-bottom:3px solid #183c63;padding-bottom:12px;margin-bottom:12px}.meta{margin-bottom:12px;display:flex;justify-content:space-between;gap:10px}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #9baabd;padding:7px;vertical-align:top;overflow-wrap:anywhere}th{background:#e8eff7;text-align:left}thead{display:table-header-group}tr{break-inside:avoid}.assinaturas{display:flex;justify-content:space-around;gap:32px;margin-top:55px;break-inside:avoid;page-break-inside:avoid}.assinatura{width:43%;text-align:center}.linha{border-top:1px solid #182c40;padding-top:7px}.legenda{font-size:10px;color:#526173;margin-top:5px}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><div class="top"><h1>PREFEITURA MUNICIPAL DE SANTO ANTÔNIO DE JESUS</h1><h2>SEINFRA — Fiscalização de Obras | Relação de Obras Embargadas</h2></div><div class="meta"><b>Equipe: '+esc(nomeEquipe)+'</b><b>Data da impressão: '+esc(data)+'</b><b>Total de obras: '+obras.length+'</b></div><table><thead><tr><th>Nº da notificação</th><th>Data da notificação</th><th>Nome do autuado</th><th>Endereço da obra</th><th>Nº da infração e data</th><th>Nº do embargo e data</th></tr></thead><tbody>'+linhas+'</tbody></table><div class="assinaturas"><div class="assinatura"><div class="linha"><b>Equipe de Fiscalização</b></div><div class="legenda">Assinatura dos fiscais — recebimento da relação</div></div><div class="assinatura"><div class="linha"><b>MADALENA</b></div><div class="legenda">Chefe da Fiscalização de Obras</div></div></div></body></html>';
+  const aba=window.open('','_blank');if(!aba){msg('acomp-status','Permita janelas pop-up para imprimir.');return;}aba.document.open();aba.document.write(html);aba.document.close();aba.focus();setTimeout(()=>aba.print(),400);
+ }
+ el('acomp-imprimir').addEventListener('click',imprimir);
  async function abrir(n){
   selecionada=n;el('acomp-detalhe').hidden=false;el('acomp-titulo').textContent='Notificação '+n.numero_notificacao+' — '+n.nome_autuado;
   el('acomp-form').hidden=!pode(n);el('acomp-data').value=m2Data();msg('acomp-msg','');
@@ -2247,7 +2263,7 @@ document.getElementById('backup-baixar-roteiro')?.addEventListener('click',()=>{
  }
  el('acomp-abrir').addEventListener('click',async()=>{
   ['app-area','cadastro-area','menu2-area','menu3-area','menu4-area','menu6-area','roteiro-area'].forEach(id=>{if(el(id))el(id).hidden=true});
-  el('acomp-area').hidden=false;el('acomp-detalhe').hidden=true;await listar();el('acomp-area').scrollIntoView();
+  el('acomp-area').hidden=false;el('acomp-detalhe').hidden=true;const sel=el('acomp-filtro-equipe'),prev=sel.value;sel.replaceChildren();sel.add(new Option('Todas as equipes',''));for(const e of equipesAtuais||[])if(perfilAtual?.perfil==='administrador'||String(e.id)===String(perfilAtual?.equipe_id))sel.add(new Option(e.nome,String(e.id)));sel.value=[...sel.options].some(o=>o.value===prev)?prev:'';if(perfilAtual?.perfil==='fiscal')sel.value=String(perfilAtual.equipe_id);await listar();el('acomp-area').scrollIntoView();
  });
  el('acomp-voltar').addEventListener('click',()=>{el('acomp-area').hidden=true;el('app-area').hidden=false});
  el('acomp-fechar').addEventListener('click',()=>{el('acomp-detalhe').hidden=true;selecionada=null});
