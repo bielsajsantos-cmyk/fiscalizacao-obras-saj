@@ -720,6 +720,25 @@ function roteiroData(){return roteiroDataConsultada||m2Data()}
 function roteiroEquipeAutorizada(){return perfilAtual?.perfil==='administrador'||(perfilAtual?.perfil==='fiscal'&&Number(perfilAtual?.equipe_id)===roteiroEquipeId())}
 function roteiroPodeEditar(){return !roteiroDataConsultada&&roteiroEquipeAutorizada()}
 function roteiroPodeRemover(){return roteiroEquipeAutorizada()}
+// Retornos de vistoria encerram a pendência de visita, sem apagar histórico nem autos.
+function retornoEncerraVisita(r){const t=String(r.tipo_retorno||'').toLowerCase();return !['dilacao','processo_em_andamento'].includes(t)}
+async function notificacoesComVisitaConcluida(ids){
+ const concluidas=new Set();if(!ids.length)return concluidas;
+ for(let i=0;i<ids.length;i+=100){
+  const lote=ids.slice(i,i+100);
+  const [ret,inf,emb,inter,demo]=await Promise.all([
+   cliente.from('retornos_fiscalizacao').select('notificacao_id,tipo_retorno').in('notificacao_id',lote),
+   cliente.from('autos_infracao').select('notificacao_id').in('notificacao_id',lote),
+   cliente.from('autos_embargo').select('notificacao_id').in('notificacao_id',lote),
+   cliente.from('autos_interdicao').select('notificacao_id').in('notificacao_id',lote),
+   cliente.from('intimacoes_demolitorias').select('notificacao_id').in('notificacao_id',lote)
+  ]);
+  for(const r of [ret,inf,emb,inter,demo])if(r.error)throw r.error;
+  for(const r of ret.data||[])if(retornoEncerraVisita(r))concluidas.add(r.notificacao_id);
+  for(const r of [inf,emb,inter,demo])for(const x of r.data||[])concluidas.add(x.notificacao_id);
+ }
+ return concluidas;
+}
 async function roteiroCarregar(){
  if(!usuarioAtual)return;
  const equipe=roteiroEquipeId(),data=roteiroData();
@@ -733,7 +752,7 @@ async function roteiroCarregar(){
   if(error)throw error;
   const ids=(visitas||[]).map(v=>v.notificacao_id);let dados=[];
   if(ids.length){const r=await cliente.from('notificacoes').select('id,numero_notificacao,nome_autuado,endereco_obra,bairro,prazo_regularizacao,equipe_id').in('id',ids);if(r.error)throw r.error;dados=r.data||[]}
-  const mapa=new Map(dados.map(n=>[n.id,n]));roteiroItens=(visitas||[]).filter(v=>mapa.has(v.notificacao_id)).map(v=>({...mapa.get(v.notificacao_id),visita_id:v.id,realizada:v.realizada,ordem:v.ordem}));
+  const concluidas=roteiroDataConsultada?new Set():await notificacoesComVisitaConcluida(ids);const mapa=new Map(dados.map(n=>[n.id,n]));roteiroItens=(visitas||[]).filter(v=>mapa.has(v.notificacao_id)&&!concluidas.has(v.notificacao_id)).map(v=>({...mapa.get(v.notificacao_id),visita_id:v.id,realizada:v.realizada,ordem:v.ordem}));
   roteiroRender();
  }catch(e){status('roteiro-status','Erro ao carregar: '+erroTexto(e),true)}finally{roteiroCarregando=false}
 }
@@ -758,9 +777,9 @@ async function m2Consultar(){
  if(error){m2Status(erroTexto(error),true);return}
  const ids=(data||[]).map(x=>x.id);let ret=[];
  if(ids.length){const r=await cliente.from('retornos_fiscalizacao').select('notificacao_id,data_retorno').in('notificacao_id',ids);if(r.error){m2Status(erroTexto(r.error),true);return}ret=r.data||[]}
- const recentes=new Map();for(const r of ret){if(!recentes.get(r.notificacao_id)||r.data_retorno>recentes.get(r.notificacao_id))recentes.set(r.notificacao_id,r.data_retorno)}
+ const concluidas=await notificacoesComVisitaConcluida(ids);const recentes=new Map();for(const r of ret){if(!recentes.get(r.notificacao_id)||r.data_retorno>recentes.get(r.notificacao_id))recentes.set(r.notificacao_id,r.data_retorno)}
  const ref=$('m2-data').value||m2Data(),crit=$('m2-criterio').value;
- m2Lista=(data||[]).filter(n=>{const d=diasUteisRestantes(ref,n.prazo_regularizacao);if(crit==='todas')return true;if(d===null)return false;if(crit==='vencidas')return d<0;if(crit==='vencer')return d>=0&&d<=2;return d<=2});
+ m2Lista=(data||[]).filter(n=>{if(concluidas.has(n.id))return false;const d=diasUteisRestantes(ref,n.prazo_regularizacao);if(crit==='todas')return true;if(d===null)return false;if(crit==='vencidas')return d<0;if(crit==='vencer')return d>=0&&d<=2;return d<=2});
  for(const n of m2Lista){const tr=document.createElement('tr');[n.numero_notificacao,n.nome_autuado,n.endereco_obra,n.bairro||'Não informado',m2Format(n.data_notificacao),m2Format(n.prazo_regularizacao),n.situacao,m2Format(recentes.get(n.id)),prazoSituacao(n,ref)].forEach(x=>celula(tr,x));const td=document.createElement('td');if(m2PodeRegistrar(n)){const cb=document.createElement('input');cb.type='checkbox';cb.style.width='22px';cb.style.height='22px';cb.setAttribute('aria-label','Selecionar notificação '+n.numero_notificacao);cb.addEventListener('change',()=>cb.checked?roteiroSelecionadas.add(n.id):roteiroSelecionadas.delete(n.id));td.append(cb)}else{td.textContent='Outra equipe — consulta';}tr.append(td);$('m2-linhas').append(tr)}
  m2Status(m2Lista.length+' notificação(ões) encontrada(s). Selecione as visitas e clique em Adicionar selecionadas ao roteiro.');
 }
@@ -850,6 +869,7 @@ $('m2-enviar-roteiro').addEventListener('click',async()=>{
   // Usa os checkboxes efetivamente marcados, inclusive se o navegador restaurou o estado.
   const marcadas=[...$('m2-linhas').querySelectorAll('tr')].filter(tr=>tr.querySelector('input[type="checkbox"]')?.checked);
   const escolhidas=marcadas.map(tr=>m2Lista[[...$('m2-linhas').children].indexOf(tr)]).filter(n=>n&&m2PodeRegistrar(n));
+  const concluidasAntesDeSalvar=await notificacoesComVisitaConcluida(escolhidas.map(n=>n.id));if(concluidasAntesDeSalvar.size)throw Error('Há notificações já fiscalizadas na seleção. Atualize a consulta de prazos antes de montar o roteiro.');
   if(!escolhidas.length)throw Error('Marque pelo menos uma notificação da sua equipe.');
   roteiroDataConsultada=null;
   $('roteiro-data').value=m2Data();
@@ -907,6 +927,7 @@ try{
   }
 }catch(erroMarcacao){avisoRoteiro=' Retorno salvo, mas não foi possível atualizar a situação da visita: '+erroTexto(erroMarcacao)}
 try{await roteiroCarregar()}catch(e){avisoRoteiro+=' Não foi possível atualizar a lista do roteiro.'}
+if(!$('menu2-area').hidden){try{await m2Consultar()}catch(e){avisoRoteiro+=' Não foi possível atualizar os prazos.'}}
 try{await consultar()}catch(e){}
 // Atualizar também os resultados do Menu 7 após registrar um retorno por esta janela.
 if(!$('menu3-area').hidden){try{await m3Pesquisar()}catch(e){status('m3-status','Retorno salvo, mas não foi possível atualizar a consulta: '+erroTexto(e),true)}}
