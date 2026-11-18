@@ -1298,7 +1298,33 @@ function m3Detalhes(r){
  section('Autos de Embargo',r.ae,x=>[['Nº do auto',x.numero_auto],['Data',date(x.data_auto)],['Horário',x.hora_auto],['Justificativa',x.justificativa]]);
  section('Autos de Interdição',r.inter,x=>[['Nº do auto',x.numero_auto],['Data',date(x.data_auto)],['Horário',x.hora_auto],['Motivo',x.motivo]]);
  section('Intimações Demolitórias',r.demo,x=>[['Nº do documento',x.numero_documento||x.numero_auto],['Data',date(x.data_documento||x.data_auto)],['Motivo',x.motivo]]);
- section('Histórico de retornos e dilação',r.ret,x=>{let prov=x.providencias_adotadas;if(typeof prov==='object'&&prov!==null)prov=JSON.stringify(prov);return [['Data da visita',date(x.data_retorno)],['Tipo de retorno',x.tipo_retorno],['Providências adotadas',prov],['Observações',x.observacoes]]});
+ // Agrupa apenas os retornos de infração e embargo da mesma visita.
+// Os registros originais continuam separados no Supabase para fins de auditoria.
+const historicoRetornosAgrupado=[];
+const gruposAutos=new Map();
+for(const retorno of (r.ret||[])){
+ const tipo=String(retorno.tipo_retorno||'').toLowerCase().trim();
+ const agrupar=tipo==='infracao'||tipo==='embargo';
+ const chave=agrupar?String(retorno.data_retorno||''):'';
+ if(!agrupar||!chave){historicoRetornosAgrupado.push(retorno);continue}
+ if(!gruposAutos.has(chave)){
+  const grupo={...retorno,_tipos:new Set(),_observacoes:[],_providencias:[]};
+  gruposAutos.set(chave,grupo);historicoRetornosAgrupado.push(grupo);
+ }
+ const grupo=gruposAutos.get(chave);
+ grupo._tipos.add(tipo);
+ if(retorno.observacoes&& !grupo._observacoes.includes(retorno.observacoes))grupo._observacoes.push(retorno.observacoes);
+ const providencia=retorno.providencias_adotadas;
+ const texto=typeof providencia==='object'&&providencia!==null?JSON.stringify(providencia):String(providencia||'');
+ if(texto&&!grupo._providencias.includes(texto))grupo._providencias.push(texto);
+}
+section('Histórico de retornos e dilação',historicoRetornosAgrupado,x=>{
+ const tipos=x._tipos?[...x._tipos]:[];
+ const atividade=tipos.includes('infracao')&&tipos.includes('embargo')?'Infração e embargo':tipos.length?(tipos[0]==='infracao'?'Infração':'Embargo'):x.tipo_retorno;
+ const prov=x._providencias?x._providencias.join(' | '):(typeof x.providencias_adotadas==='object'&&x.providencias_adotadas!==null?JSON.stringify(x.providencias_adotadas):x.providencias_adotadas);
+ const obs=x._observacoes?x._observacoes.join(' | '):x.observacoes;
+ return [['Data da visita',date(x.data_retorno)],['Atividade realizada',atividade],['Providências adotadas',prov],['Observações',obs]];
+});
  const extra=[['Descrição da ocorrência',n.descricao_ocorrencia],['Observações da notificação',n.observacoes]].filter(([,v])=>v);if(extra.length){const sec=document.createElement('section');sec.className='m3-section';const h=document.createElement('h4');h.textContent='Informações complementares';sec.append(h);const rec=document.createElement('div');rec.className='m3-record';for(const [k,v] of extra)rec.append(field(k,v));sec.append(rec);cont.append(sec)}
  // Um único botão de comunicação, ao final da consulta; nenhuma ação extra na tabela.
  const podeCompartilhar=perfilAtual&&perfilAtual.ativo&&(perfilAtual.perfil==='administrador'||(perfilAtual.perfil==='fiscal'&&String(perfilAtual.equipe_id)===String(n.equipe_id)));
