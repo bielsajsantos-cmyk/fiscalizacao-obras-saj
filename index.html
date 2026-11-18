@@ -588,15 +588,37 @@ async function carregarFotosNotificacao(id,container){
   }sec.append(item);
  }
 }
-async function carregarFotosRetornos(id,container){
- const sec=document.createElement('section');sec.className='m3-section';const h=document.createElement('h4');h.textContent='Fotografias dos retornos — histórico por vistoria';sec.append(h);container.append(sec);
+async function carregarFotosRetornos(id,container,secAutos=null){
+ const sec=document.createElement('section');sec.className='m3-section';const h=document.createElement('h4');h.textContent='Fotografias dos retornos — histórico por vistoria';sec.append(h);
  const {data,error}=await cliente.from('fotografias_retorno_saj').select('retorno_id,caminho_storage,descricao,criado_em').eq('notificacao_id',id).order('criado_em',{ascending:true});
- if(error){sec.append(document.createTextNode('Não foi possível consultar fotos dos retornos: '+erroTexto(error)));return}
- if(!data?.length){sec.append(document.createTextNode('Nenhuma foto anexada aos retornos.'));return}
- const {data:retornos}=await cliente.from('retornos_fiscalizacao').select('id,data_retorno,tipo_retorno,observacoes').eq('notificacao_id',id);
+ if(error){container.append(sec);sec.append(document.createTextNode('Não foi possível consultar fotos dos retornos: '+erroTexto(error)));return}
+ if(!data?.length)return;
+ const {data:retornos,error:erroRetornos}=await cliente.from('retornos_fiscalizacao').select('id,data_retorno,tipo_retorno').eq('notificacao_id',id);
+ if(erroRetornos){container.append(sec);sec.append(document.createTextNode('Não foi possível identificar os procedimentos das fotografias.'));return}
  const mapa=new Map((retornos||[]).map(r=>[r.id,r]));
- for(const f of data){const item=document.createElement('div');item.className='m3-record';const r=mapa.get(f.retorno_id);const cab=document.createElement('strong');cab.textContent=r?`${m2Format(r.data_retorno)} — ${r.tipo_retorno||'Vistoria'}`:'Retorno registrado';item.append(cab);
- const {data:arquivo,error:err}=await cliente.storage.from(FOTO_BUCKET).download(f.caminho_storage);if(err){item.append(document.createTextNode(' Foto indisponível: '+erroTexto(err)))}else{const url=URL.createObjectURL(arquivo),a=document.createElement('a'),img=document.createElement('img');a.href=url;a.target='_blank';a.rel='noopener';img.src=url;img.alt=f.descricao||'Foto da vistoria';img.style.cssText='max-width:100%;max-height:340px;border-radius:8px;display:block;margin-top:8px';a.append(img);item.append(a);urlsFotosMenu3.push(url)}if(f.descricao){const p=document.createElement('p');p.textContent=f.descricao;item.append(p)}sec.append(item)}
+ // Na notificação 371/2026, as duas fotos da infração de 18/11/2026
+ // documentam o procedimento conjunto de infração e embargo.
+ const autos371=secAutos&&id==='ce5383eb-712b-4d55-b9b1-02a73528f3d6';
+ let temAutos=false,temOutros=false;
+ for(const f of data){
+  const r=mapa.get(f.retorno_id);
+  const fotoAutos=autos371&&r?.id==='70a98e13-c1e3-4580-991b-a7bd6a35d0f3'&&r.data_retorno==='2026-11-18';
+  const destino=fotoAutos?secAutos:sec;
+  if(fotoAutos)temAutos=true;else temOutros=true;
+  const item=document.createElement('div');item.className='m3-record';
+  const cab=document.createElement('strong');cab.textContent=fotoAutos?'18/11/2026 - registro fotográfico da infração e embargo':r?`${m2Format(r.data_retorno)} — ${r.tipo_retorno||'Vistoria'}`:'Retorno registrado';item.append(cab);
+  const {data:arquivo,error:err}=await cliente.storage.from(FOTO_BUCKET).download(f.caminho_storage);
+  if(err){item.append(document.createTextNode(' Foto indisponível: '+erroTexto(err)))}else{
+   const url=URL.createObjectURL(arquivo),a=document.createElement('a'),img=document.createElement('img');
+   a.href=url;a.target='_blank';a.rel='noopener';img.src=url;img.alt=f.descricao||'Foto da vistoria';
+   img.style.cssText='max-width:100%;max-height:340px;border-radius:8px;display:block;margin-top:8px';
+   a.append(img);item.append(a);urlsFotosMenu3.push(url);
+  }
+  if(f.descricao){const p=document.createElement('p');p.textContent=f.descricao;item.append(p)}
+  destino.append(item);
+ }
+ if(temOutros)container.append(sec);
+ if(secAutos&&!temAutos)secAutos.remove();
 }
 let urlsFotosMenu3=[];
 function limparUrlsFotos(){for(const u of urlsFotosMenu3)URL.revokeObjectURL(u);urlsFotosMenu3=[]}
@@ -1298,6 +1320,9 @@ function m3Detalhes(r){
  const section=(title,items,mapper)=>{const sec=document.createElement('section');sec.className='m3-section';const h=document.createElement('h4');h.textContent=title;sec.append(h);if(!items.length){const p=document.createElement('p');p.className='m3-empty';p.textContent='Nenhum registro.';sec.append(p)}else{items.forEach((item,i)=>{const rec=document.createElement('div');rec.className='m3-record';const head=document.createElement('div');head.className='m3-record-head';head.textContent=title.replace(/s$/,'')+' '+(i+1);rec.append(head);const grid=document.createElement('div');grid.className='m3-record-grid';for(const [label,value] of mapper(item)){if(value!==null&&value!==undefined&&value!=='')grid.append(field(label,value))}rec.append(grid);sec.append(rec)})}cont.append(sec)};
  section('Autos de Infração',r.ai,x=>[['Nº do auto',x.numero_auto],['Data',date(x.data_auto)],['Horário',x.hora_auto],['Valor da multa',money(x.valor_multa)],['Natureza da infração',x.natureza_infracao]]);
  section('Autos de Embargo',r.ae,x=>[['Nº do auto',x.numero_auto],['Data',date(x.data_auto)],['Horário',x.hora_auto],['Justificativa',x.justificativa]]);
+ const fotosAutos371=n.numero_notificacao==='371/2026'?document.createElement('section'):null;
+ if(fotosAutos371){fotosAutos371.className='m3-section';const titulo=document.createElement('h4');titulo.textContent='Registro fotográfico da infração e embargo';fotosAutos371.append(titulo);cont.append(fotosAutos371);}
+
  section('Autos de Interdição',r.inter,x=>[['Nº do auto',x.numero_auto],['Data',date(x.data_auto)],['Horário',x.hora_auto],['Motivo',x.motivo]]);
  section('Intimações Demolitórias',r.demo,x=>[['Nº do documento',x.numero_documento||x.numero_auto],['Data',date(x.data_documento||x.data_auto)],['Motivo',x.motivo]]);
  // Agrupa apenas os retornos de infração e embargo da mesma visita.
@@ -1337,7 +1362,7 @@ section('Histórico de retornos e dilação',historicoRetornosAgrupado,x=>{
   const enviar=document.createElement('button');enviar.type='button';enviar.className='botao-whatsapp';enviar.textContent='Enviar comunicado pelo WhatsApp';enviar.addEventListener('click',()=>m3EnviarAtualizacaoWhatsapp(r));acoes.append(enviar);
   cont.append(acoes);
  }
- $('m3-detalhe').hidden=false;$('m3-modal-fundo').hidden=false;$('m3-detalhe').scrollTop=0;$('m3-fechar-detalhe').focus();carregarFotosRetornos(n.id,cont).catch(e=>console.error('Fotos dos retornos:',e));
+ $('m3-detalhe').hidden=false;$('m3-modal-fundo').hidden=false;$('m3-detalhe').scrollTop=0;$('m3-fechar-detalhe').focus();carregarFotosRetornos(n.id,cont,fotosAutos371).catch(e=>console.error('Fotos dos retornos:',e));
 }
 // Evita que o Chrome identifique a pesquisa como campo de pagamento.
 const pesquisaMenu7=$('m3-termo');
