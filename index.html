@@ -573,7 +573,7 @@ async function enviarFotoNotificacao(id,arquivo,descricao){
  if(metaErro)throw Error('Imagem enviada, mas falhou o vínculo no banco: '+erroTexto(metaErro));
 }
 async function carregarFotosNotificacao(id,container){
- const sec=document.createElement('section');sec.className='m3-section';const h=document.createElement('h4');h.textContent='Registro fotográfico';sec.append(h);container.append(sec);
+ const sec=document.createElement('section');sec.className='m3-section m3-galeria-fotos';const h=document.createElement('h4');h.textContent='Registro fotográfico';sec.append(h);container.append(sec);
  const {data,error}=await cliente.from('fotografias_notificacao').select('caminho_storage,descricao,tamanho_bytes').eq('notificacao_id',id).order('criado_em',{ascending:true});
  if(error){sec.append(document.createTextNode('Não foi possível consultar as fotos: '+erroTexto(error)));return}
  if(!data?.length){sec.append(document.createTextNode('Nenhuma fotografia cadastrada.'));return}
