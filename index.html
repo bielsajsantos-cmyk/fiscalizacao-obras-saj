@@ -611,11 +611,11 @@ async function carregarFotosRetornos(id,container,secAutos=null){
  const mapa=new Map((retornos||[]).map(r=>[r.id,r]));
  // Na notificação 371/2026, as duas fotos da infração de 18/11/2026
  // documentam o procedimento conjunto de infração e embargo.
- const autos371=secAutos&&id==='ce5383eb-712b-4d55-b9b1-02a73528f3d6';
+ const autos371=secAutos&&['ce5383eb-712b-4d55-b9b1-02a73528f3d6','692d882c-7d1a-4331-97da-050450f45372'].includes(id);
  let temAutos=false,temOutros=false;
  for(const f of data){
   const r=mapa.get(f.retorno_id);
-  const fotoAutos=autos371&&r?.id==='70a98e13-c1e3-4580-991b-a7bd6a35d0f3'&&r.data_retorno==='2026-11-18';
+  const fotoAutos=autos371&&['70a98e13-c1e3-4580-991b-a7bd6a35d0f3','88e17801-e683-4225-aafb-1d4b1ebb37f3'].includes(r?.id)&&r.data_retorno==='2026-11-18';
   const destino=fotoAutos?secAutos:sec;
   if(fotoAutos)temAutos=true;else temOutros=true;
   const item=document.createElement('div');item.className='m3-record';
@@ -1333,7 +1333,7 @@ function m3Detalhes(r){
  const section=(title,items,mapper)=>{const sec=document.createElement('section');sec.className='m3-section';const h=document.createElement('h4');h.textContent=title;sec.append(h);if(!items.length){const p=document.createElement('p');p.className='m3-empty';p.textContent='Nenhum registro.';sec.append(p)}else{items.forEach((item,i)=>{const rec=document.createElement('div');rec.className='m3-record';const head=document.createElement('div');head.className='m3-record-head';head.textContent=title.replace(/s$/,'')+' '+(i+1);rec.append(head);const grid=document.createElement('div');grid.className='m3-record-grid';for(const [label,value] of mapper(item)){if(value!==null&&value!==undefined&&value!=='')grid.append(field(label,value))}rec.append(grid);sec.append(rec)})}cont.append(sec)};
  section('Autos de Infração',r.ai,x=>[['Nº do auto',x.numero_auto],['Data',date(x.data_auto)],['Horário',x.hora_auto],['Valor da multa',money(x.valor_multa)],['Natureza da infração',x.natureza_infracao]]);
  section('Autos de Embargo',r.ae,x=>[['Nº do auto',x.numero_auto],['Data',date(x.data_auto)],['Horário',x.hora_auto],['Justificativa',x.justificativa]]);
- const fotosAutos371=n.numero_notificacao==='371/2026'?document.createElement('section'):null;
+ const fotosAutos371=['371/2026','364/2026'].includes(n.numero_notificacao)?document.createElement('section'):null;
  if(fotosAutos371){fotosAutos371.className='m3-section m3-galeria-fotos';const titulo=document.createElement('h4');titulo.textContent='Registro fotográfico da infração e embargo';fotosAutos371.append(titulo);cont.append(fotosAutos371);}
 
  section('Autos de Interdição',r.inter,x=>[['Nº do auto',x.numero_auto],['Data',date(x.data_auto)],['Horário',x.hora_auto],['Motivo',x.motivo]]);
