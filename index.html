@@ -1339,7 +1339,12 @@ section('Histórico de retornos e dilação',historicoRetornosAgrupado,x=>{
  }
  $('m3-detalhe').hidden=false;$('m3-modal-fundo').hidden=false;$('m3-detalhe').scrollTop=0;$('m3-fechar-detalhe').focus();carregarFotosRetornos(n.id,cont).catch(e=>console.error('Fotos dos retornos:',e));
 }
-// Evita que o Chrome identifique a pesquisa como campo de pagamento.\nconst pesquisaMenu7=$('m3-termo');\npesquisaMenu7.addEventListener('pointerdown',()=>{pesquisaMenu7.readOnly=false});\npesquisaMenu7.addEventListener('keydown',()=>{pesquisaMenu7.readOnly=false});\npesquisaMenu7.addEventListener('blur',()=>{pesquisaMenu7.readOnly=true});\n$('m3-abrir').addEventListener('click',m3Abrir);$('m3-voltar').addEventListener('click',()=>{$('menu3-area').hidden=true;$('app-area').hidden=false});$('m3-pesquisar').addEventListener('click',m3Pesquisar);$('m3-limpar').addEventListener('click',()=>{$('m3-termo').value='';$('m3-mes').value='';$('m3-situacao').value='';$('m3-equipe').value='';m3Pesquisar()});$('m3-fechar-detalhe').addEventListener('click',m3FecharDetalhes);$('m3-modal-fundo').addEventListener('click',m3FecharDetalhes);document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&!$('m3-detalhe').hidden){ev.preventDefault();m3FecharDetalhes();}});
+// Evita que o Chrome identifique a pesquisa como campo de pagamento.
+const pesquisaMenu7=$('m3-termo');
+pesquisaMenu7.addEventListener('pointerdown',()=>{pesquisaMenu7.readOnly=false});
+pesquisaMenu7.addEventListener('keydown',()=>{pesquisaMenu7.readOnly=false});
+pesquisaMenu7.addEventListener('blur',()=>{pesquisaMenu7.readOnly=true});
+$('m3-abrir').addEventListener('click',m3Abrir);$('m3-voltar').addEventListener('click',()=>{$('menu3-area').hidden=true;$('app-area').hidden=false});$('m3-pesquisar').addEventListener('click',m3Pesquisar);$('m3-limpar').addEventListener('click',()=>{$('m3-termo').value='';$('m3-mes').value='';$('m3-situacao').value='';$('m3-equipe').value='';m3Pesquisar()});$('m3-fechar-detalhe').addEventListener('click',m3FecharDetalhes);$('m3-modal-fundo').addEventListener('click',m3FecharDetalhes);document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&!$('m3-detalhe').hidden){ev.preventDefault();m3FecharDetalhes();}});
 
 $('alterar-senha-abrir').addEventListener('click',()=>{$('alterar-senha-area').hidden=!$('alterar-senha-area').hidden;});
 $('alterar-senha-cancelar').addEventListener('click',()=>{$('alterar-senha-area').hidden=true;$('alterar-senha-form').reset();status('alterar-senha-status','');});
