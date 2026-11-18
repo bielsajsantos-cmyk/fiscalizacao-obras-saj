@@ -588,8 +588,21 @@ async function carregarFotosNotificacao(id,container){
   }sec.append(item);
  }
 }
+// Galeria responsiva: duas fotografias lado a lado em telas maiores.
+if(!document.getElementById('m3-galeria-estilo')){
+ const estilo=document.createElement('style');estilo.id='m3-galeria-estilo';
+ estilo.textContent=`
+ .m3-galeria-fotos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+ .m3-galeria-fotos>h4{grid-column:1/-1;margin-bottom:0}
+ .m3-galeria-fotos>.m3-record{min-width:0;margin:0}
+ .m3-galeria-fotos>.m3-record img{width:100%;max-height:360px;object-fit:contain}
+ .m3-galeria-fotos>.m3-record p{overflow-wrap:anywhere}
+ @media(max-width:620px){.m3-galeria-fotos{grid-template-columns:minmax(0,1fr)}}
+ `;
+ document.head.append(estilo);
+}
 async function carregarFotosRetornos(id,container,secAutos=null){
- const sec=document.createElement('section');sec.className='m3-section';const h=document.createElement('h4');h.textContent='Fotografias dos retornos — histórico por vistoria';sec.append(h);
+ const sec=document.createElement('section');sec.className='m3-section m3-galeria-fotos';const h=document.createElement('h4');h.textContent='Fotografias dos retornos — histórico por vistoria';sec.append(h);
  const {data,error}=await cliente.from('fotografias_retorno_saj').select('retorno_id,caminho_storage,descricao,criado_em').eq('notificacao_id',id).order('criado_em',{ascending:true});
  if(error){container.append(sec);sec.append(document.createTextNode('Não foi possível consultar fotos dos retornos: '+erroTexto(error)));return}
  if(!data?.length)return;
@@ -1321,7 +1334,7 @@ function m3Detalhes(r){
  section('Autos de Infração',r.ai,x=>[['Nº do auto',x.numero_auto],['Data',date(x.data_auto)],['Horário',x.hora_auto],['Valor da multa',money(x.valor_multa)],['Natureza da infração',x.natureza_infracao]]);
  section('Autos de Embargo',r.ae,x=>[['Nº do auto',x.numero_auto],['Data',date(x.data_auto)],['Horário',x.hora_auto],['Justificativa',x.justificativa]]);
  const fotosAutos371=n.numero_notificacao==='371/2026'?document.createElement('section'):null;
- if(fotosAutos371){fotosAutos371.className='m3-section';const titulo=document.createElement('h4');titulo.textContent='Registro fotográfico da infração e embargo';fotosAutos371.append(titulo);cont.append(fotosAutos371);}
+ if(fotosAutos371){fotosAutos371.className='m3-section m3-galeria-fotos';const titulo=document.createElement('h4');titulo.textContent='Registro fotográfico da infração e embargo';fotosAutos371.append(titulo);cont.append(fotosAutos371);}
 
  section('Autos de Interdição',r.inter,x=>[['Nº do auto',x.numero_auto],['Data',date(x.data_auto)],['Horário',x.hora_auto],['Motivo',x.motivo]]);
  section('Intimações Demolitórias',r.demo,x=>[['Nº do documento',x.numero_documento||x.numero_auto],['Data',date(x.data_documento||x.data_auto)],['Motivo',x.motivo]]);
