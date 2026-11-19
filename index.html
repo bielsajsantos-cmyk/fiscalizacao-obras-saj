@@ -1368,7 +1368,7 @@ section('Histórico de retornos e dilação',historicoRetornosAgrupado,x=>{
  const obs=x._observacoes?x._observacoes.join(' | '):x.observacoes;
  return [['Data da visita',date(x.data_retorno)],['Atividade realizada',atividade],['Providências adotadas',prov],['Observações',obs]];
 });
- const extra=[['Descrição da ocorrência',n.descricao_ocorrencia]].filter(([,v])=>v);if(extra.length){const sec=document.createElement('section');sec.className='m3-section';const h=document.createElement('h4');h.textContent='Informações complementares';sec.append(h);const rec=document.createElement('div');rec.className='m3-record';for(const [k,v] of extra)rec.append(field(k,v));sec.append(rec);cont.append(sec)}
+ // Informações complementares removidas desta janela para evitar repetição de observações.
  // Um único botão de comunicação, ao final da consulta; nenhuma ação extra na tabela.
  const podeCompartilhar=perfilAtual&&perfilAtual.ativo&&(perfilAtual.perfil==='administrador'||(perfilAtual.perfil==='fiscal'&&String(perfilAtual.equipe_id)===String(n.equipe_id)));
  if(podeCompartilhar){
