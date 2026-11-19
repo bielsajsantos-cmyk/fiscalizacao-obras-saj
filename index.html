@@ -654,7 +654,7 @@ function prepararDetalhesNotificacao(payload){
  if(tipos.length)detalhes.push('Natureza da obra: '+tipos.join(', '));
  const estadoObra=document.querySelector('input[name="estado-tipo-obra"]:checked');
  if(estadoObra)detalhes.push('Situação da obra: '+estadoObra.value);
- payload.observacoes=detalhes.filter(Boolean).join('\n');
+ payload.detalhes_tecnicos=[payload.descricao_ocorrencia,...detalhes.filter(Boolean)].filter(Boolean).join('\n');
  if($('c-cpf').value.trim())payload.cpf_cnpj=$('c-cpf').value.trim();
  if($('c-rg').value.trim())payload.rg=$('c-rg').value.trim();
 }
@@ -1327,7 +1327,7 @@ function m3Detalhes(r){
  const money=x=>{if(x===null||x===undefined||x==='')return 'Não informado';const num=Number(x);return Number.isFinite(num)?num.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):val(x)};
  const field=(label,value)=>{const div=document.createElement('div');div.className='m3-field';const b=document.createElement('span');b.className='m3-field-label';b.textContent=label;const t=document.createElement('span');t.textContent=val(value);div.append(b,t);return div};
  const summary=document.createElement('div');summary.className='m3-summary';const grid=document.createElement('div');grid.className='m3-summary-grid';
- for(const [label,value] of [['Notificação',n.numero_notificacao],['Data da notificação',date(n.data_notificacao)],['Nome do autuado',n.nome_autuado],['Local da obra',[n.endereco_obra,n.bairro?'Bairro: '+n.bairro:''].filter(Boolean).join(' — ')],['Prazo vigente',date(n.prazo_regularizacao)],['Situação da obra',n.situacao],['Nº do processo administrativo',n.numero_processo],['Nº do alvará',n.numero_alvara]]){const div=document.createElement('div');div.className='m3-summary-item';const b=document.createElement('strong');b.textContent=label+': ';div.append(b,document.createTextNode(val(value)));grid.append(div)}summary.append(grid);cont.append(summary);
+ for(const [label,value] of [['Notificação',n.numero_notificacao],['Data da notificação',date(n.data_notificacao)],['Nome do autuado',n.nome_autuado],['Local da obra',[n.endereco_obra,n.bairro?'Bairro: '+n.bairro:''].filter(Boolean).join(' — ')],['Prazo vigente',date(n.prazo_regularizacao)],['Situação da obra',n.situacao],['Nº do processo administrativo',n.numero_processo],['Nº do alvará',n.numero_alvara],['Informações técnicas da notificação',n.detalhes_tecnicos||[n.descricao_ocorrencia,n.observacoes].filter(Boolean).join('\n')]]){const div=document.createElement('div');div.className='m3-summary-item';const b=document.createElement('strong');b.textContent=label+': ';div.append(b,document.createTextNode(val(value)));if(label==='Informações técnicas da notificação'){div.style.whiteSpace='pre-wrap';div.style.gridColumn='1 / -1'}grid.append(div)}summary.append(grid);cont.append(summary);
  // Fotografias primeiro; observações somente leitura logo abaixo da galeria.
  carregarFotosNotificacao(n.id,cont).catch(e=>console.error('Fotos da notificação:',e));
  const obsVisual=document.createElement('section');obsVisual.className='m3-section';
