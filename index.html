@@ -432,7 +432,7 @@ async function carregarEquipes(){
  else {sel.disabled=false;sel.value=String(equipesAtuais[0]?.id||'')}
  atualizarNomeEquipe();
 }
-function atualizarNomeEquipe(){const eq=equipesAtuais.find(e=>String(e.id)===$('c-equipe').value);const n=(eq?.nome||'').toLowerCase();$('c-fiscal').value=n.includes('equipe a')?'Francisco, Maria Gerusa e Ademir':n.includes('equipe b')?'Celso e Gerson':(eq?.nome||'Equipe não identificada')}
+function atualizarNomeEquipe(){const eq=equipesAtuais.find(e=>String(e.id)===$('c-equipe').value);const n=(eq?.nome||'').toLowerCase();$('c-fiscal').value=n.includes('equipe a')?'Francisco e Maria Gerusa':n.includes('equipe b')?'Celso e Gerson':(eq?.nome||'Equipe não identificada')}
 $('c-equipe').addEventListener('change',atualizarNomeEquipe);
 function pascoa(ano){const a=ano%19,b=Math.floor(ano/100),c=ano%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k+7)%7,m=Math.floor((a+11*h+22*l)/451),mes=Math.floor((h+l-7*m+114)/31),dia=(h+l-7*m+114)%31+1;return new Date(ano,mes-1,dia)}
 function dataISO(d){return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')}
@@ -1345,7 +1345,7 @@ async function m3ImprimirIndividual(r){
  const orig=await fotos(consultas[0],true), retornos=await fotos(consultas[1],false);
  const equipeRelatorio=equipesAtuais.find(e=>String(e.id)===String(n.equipe_id))?.nome||'Equipe não identificada';
  const nomeEquipeRelatorio=equipeRelatorio.toLowerCase();
- const fiscaisRelatorio=nomeEquipeRelatorio.includes('equipe a')?[['Maria Gerusa Santos Mercês','775'],['Francisco Correia Filho','1645'],['Ademir Sampaio Bezerra','1641']]:nomeEquipeRelatorio.includes('equipe b')?[['Celso Luiz Francisco dos Santos','1608'],['Gerson Bomfim Lima','1646']]:[];
+ const fiscaisRelatorio=nomeEquipeRelatorio.includes('equipe a')?[['Maria Gerusa Santos Mercês','775'],['Francisco Correia Filho','1645']]:nomeEquipeRelatorio.includes('equipe b')?[['Celso Luiz Francisco dos Santos','1608'],['Gerson Bomfim Lima','1646']]:[];
  const assinaturasRelatorio='<section class="assinaturas-relatorio"><h2>10. Assinaturas da equipe responsável — '+esc(equipeRelatorio)+'</h2><div class="assinaturas-grid">'+(fiscaisRelatorio.length?fiscaisRelatorio.map(([nome,mat])=>'<div class="assinatura-fiscal"><strong>'+esc(nome)+'</strong><div>Fiscal de Obras — Matrícula '+esc(mat)+'</div></div>').join(''):'<div class="assinatura-fiscal">Fiscal responsável — '+esc(equipeRelatorio)+'</div>')+'</div></section>';
 
  const multasInformadas=ai.filter(x=>x.valor_multa!==null&&x.valor_multa!==undefined&&x.valor_multa!==''&&Number.isFinite(Number(x.valor_multa)));const total=multasInformadas.reduce((a,x)=>a+Math.round(Number(x.valor_multa)*100),0)/100;
@@ -1788,7 +1788,7 @@ el('m4-whatsapp').addEventListener('click',()=>{
   if(error){mensagem('Não foi possível identificar a equipe: '+erroTexto(error),true);return}
   const equipe=equipesAtuais.find(e=>String(e.id)===String(n.equipe_id));
   const nome=equipe?.nome||'Equipe não identificada';
-  const a=nome.toLowerCase();const fiscais=a.includes('equipe a')?'Maria Gerusa Santos Mercês (775); Francisco Correia Filho (1645); Ademir Sampaio Bezerra (1641)':a.includes('equipe b')?'Celso Luiz Francisco dos Santos (1608); Gerson Bomfim Lima (1646)':'Equipe sem configuração de assinaturas';
+  const a=nome.toLowerCase();const fiscais=a.includes('equipe a')?'Maria Gerusa Santos Mercês (775); Francisco Correia Filho (1645)':a.includes('equipe b')?'Celso Luiz Francisco dos Santos (1608); Gerson Bomfim Lima (1646)':'Equipe sem configuração de assinaturas';
   const resumo=get('m6-resumo');resumo.replaceChildren();
   [['Notificação',n.numero_notificacao],['Autuado',n.nome_autuado],['Endereço',n.endereco_obra],['Auto de Infração',r.numero_auto_infracao],['Valor da multa',moeda(r.valor_multa)],['Equipe responsável',nome],['Fiscais que assinarão',fiscais]].forEach(([k,v])=>linhaTexto(resumo,k,v));
   detalhesSelecionados={notificacao:n,equipe:nome,fiscais};
